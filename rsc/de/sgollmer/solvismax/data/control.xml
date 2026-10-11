@@ -65,6 +65,13 @@
 
 		<tns:Extensions>
 			<tns:Type id="Festbrennstoff" configuration="0x0400" />
+			<!-- Heizkreis ohne Raumfuehler: Raumfuehler und Raumeinfluss entfallen -->
+			<tns:Type id="OhneRaumfuehler_HK1" configuration="0x00010000"
+				dontCare="true" />
+			<tns:Type id="OhneRaumfuehler_HK2" configuration="0x00020000"
+				dontCare="true" />
+			<tns:Type id="OhneRaumfuehler_HK3" configuration="0x00040000"
+				dontCare="true" />
 			<tns:Type id="Zaehlfunktion2Screens" configuration="0x0100"
 				dontCare="true" />
 			<tns:Type id="SolarOstWest" configuration="0x0088"
@@ -2779,6 +2786,10 @@
 
 		<!-- Raumeinfluss_HK1 -->
 		<tns:ChannelDescription id="C10" unit="%">
+			<tns:Configuration>
+				<tns:ConfigurationMask andMask="0x00010000"
+					compareMask="0x00000000" />
+			</tns:Configuration>
 			<tns:Control optional="true">
 				<tns:GuiAccess screenId="Heizkreis-1-4_5">
 					<tns:CurrentValue>
@@ -2983,7 +2994,7 @@
 		<!-- Raumeinfluss_HK2 -->
 		<tns:ChannelDescription id="C16" unit="%">
 			<tns:Configuration>
-				<tns:ConfigurationMask andMask="0x02"
+				<tns:ConfigurationMask andMask="0x00020002"
 					compareMask="0x02" />
 			</tns:Configuration>
 			<tns:Control optional="true">
@@ -3194,7 +3205,7 @@
 		<!-- Raumeinfluss_HK3 -->
 		<tns:ChannelDescription id="C22" unit="%">
 			<tns:Configuration>
-				<tns:ConfigurationMask andMask="0x04"
+				<tns:ConfigurationMask andMask="0x00040004"
 					compareMask="0x04" />
 			</tns:Configuration>
 			<tns:Control optional="true">
@@ -4584,19 +4595,24 @@
 			</tns:Configuration>
 		</tns:Assignment>
 
-		<tns:Assignment id="RF1" name="RF1.Raumfuehler_HK1"></tns:Assignment>
+		<tns:Assignment id="RF1" name="RF1.Raumfuehler_HK1">
+			<tns:Configuration>
+				<tns:ConfigurationMask compareMask="0x00000000"
+					andMask="0x00010000" />
+			</tns:Configuration>
+		</tns:Assignment>
 
 		<tns:Assignment id="RF2" name="RF2.Raumfuehler_HK2">
 			<tns:Configuration>
 				<tns:ConfigurationMask compareMask="0x02"
-					andMask="0x02" />
+					andMask="0x00020002" />
 			</tns:Configuration>
 		</tns:Assignment>
 
 		<tns:Assignment id="RF3" name="RF3.Raumfuehler_HK3">
 			<tns:Configuration>
 				<tns:ConfigurationMask compareMask="0x04"
-					andMask="0x04" />
+					andMask="0x00040004" />
 			</tns:Configuration>
 		</tns:Assignment>
 
