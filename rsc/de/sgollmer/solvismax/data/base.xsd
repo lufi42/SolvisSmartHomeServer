@@ -667,6 +667,17 @@
 				</documentation>
 			</annotation>
 		</attribute>
+		<attribute name="haDiscoveryPrefix" type="string" use="optional">
+			<annotation>
+				<documentation>
+					Prefix für Home Assistant MQTT Auto-Discovery.
+					Typischerweise "homeassistant". Wenn gesetzt, werden beim
+					Verbindungsaufbau für alle Kanäle Discovery-Messages
+					veröffentlicht, sodass Home Assistant die Entities
+					automatisch erkennt.
+				</documentation>
+			</annotation>
+		</attribute>
 	</complexType>
 
 	<simpleType name="MqttQoS">
