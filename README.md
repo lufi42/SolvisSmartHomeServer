@@ -74,8 +74,94 @@ Smart-Home-System | Beschreibung
 ------------------ | ------------
 FHEM | Modul, das auf der Server-Client-Schnittstelle basiert (Teil des Progarmmpaketes).
 ioBroker | Objektliste mit Pairing-Script für das ioBroker-Modul MQTT Client (Wird vom Programm konfigurationsspezifisch generiert).
+Home Assistant | Automatische MQTT Discovery (siehe unten).
 
-Weitere sind in Vorbereitung
+#### Home Assistant – MQTT Auto-Discovery
+
+Die Integration mit [Home Assistant](https://www.home-assistant.io/) erfolgt über den eingebauten **MQTT Auto-Discovery**-Mechanismus.
+Beim ersten Verbindungsaufbau zum MQTT-Broker veröffentlicht der Server für jeden Solvis-Kanal eine Konfigurationsnachricht auf dem
+Discovery-Topic. Home Assistant erkennt daraufhin alle Entities automatisch, ohne dass eine manuelle Konfiguration erforderlich ist.
+
+##### Aktivierung
+
+In der `base.xml` das Attribut `haDiscoveryPrefix` zum `Mqtt`-Element hinzufügen:
+
+```xml
+<tns:Mqtt enable="true"
+    brokerUrl="192.168.0.x" port="1883"
+    subscribeQoS="1" publishQoS="1"
+    idPrefix="SolvisSmartHomeServer"
+    topicPrefix="SolvisSmartHomeServer"
+    smartHomeId="HomeAssistant"
+    haDiscoveryPrefix="homeassistant" />
+```
+
+Der Wert `homeassistant` entspricht dem Standard-Discovery-Prefix von Home Assistant und muss nur geändert werden,
+wenn dieser in der Home-Assistant-Konfiguration abweichend eingestellt wurde.
+
+##### Voraussetzung
+
+In Home Assistant muss die [MQTT-Integration](https://www.home-assistant.io/integrations/mqtt/) eingerichtet und
+mit demselben Broker verbunden sein.
+
+##### Erzeugte Entities
+
+Für jeden Solvis-Kanal wird automatisch der passende Entity-Typ gewählt:
+
+Entity-Typ | Kanäle
+---------- | ------
+`sensor` | Alle Messwerte (Temperaturen, Laufzeiten, Zähler, …)
+`number` | Schreibbare Zahlenwerte (Solltemperaturen, Differenzen, …)
+`select` | Betriebsmodi (z.B. Automatik / Tag / Nacht / Standby)
+`binary_sensor` | Binäre Zustände (nur lesen)
+`switch` | Schreibbare Binärkanäle
+
+Nicht angelegt werden Kanäle ohne Belegung in der aktuellen Anlagenkonfiguration (z.B. `I-2`, `O-4`) sowie
+alle Kanäle der SolvisControl-Oberfläche (`C*`), solange das Feature `InteractiveGUIAccess` nicht aktiv ist,
+weil der Server sie dann nicht liest.
+
+Die Konfigurationsnachrichten enthalten zusätzlich:
+
+* **Namen** aus `ha-labels.properties` (Begriffe des Solvis-Anschlussplans und der SolvisControl-Bildschirme,
+  z.B. `S01` → „Speicher oben“, `C08` → „Absenktemperatur HK1“). Ohne Eintrag wird der Name aus dem Kanalnamen abgeleitet.
+* **`unique_id` und `object_id`** aus Unit und Kanal-Id (`sensor.solvis_<unitId>_s01`). Ein Umbenennen des Kanals in der
+  `base.xml` ändert damit weder die Entity-Id noch geht die Historie verloren.
+* **`entity_category`** — `diagnostic` für Anlagentyp, Systemnummer, Uhrzeit und die Server-Status-Entities, `config` für
+  die Installateur-Parameter (`C31`–`C49`).
+* **`device_class`** — aus der Einheit abgeleitet (`temperature` für °C, `duration` für s/h, `volume_flow_rate` für l/h,
+  `power` für W/kW, `energy` für Wh/kWh, `pressure` für bar, …). Differenzen in K erhalten bewusst keine Klasse, da
+  Home Assistant sie sonst als absolute Temperatur umrechnen würde.
+* **`state_class`** — `total_increasing` für Zähler, Laufzeiten und Wärmemengen, sonst `measurement`
+* **`suggested_display_precision`** — Anzahl Nachkommastellen, abgeleitet aus der konfigurierten Messgenauigkeit des Kanals
+* **`value_template`** bei Temperaturfühlern: die Solvis-Werte für offenen bzw. kurzgeschlossenen Fühler (≥ 250 °C, ≤ −35 °C)
+  werden als „unbekannt“ gemeldet statt als Messwert.
+* **`configuration_url`** — URL der Solvis-Anlage, ermöglicht direkten Aufruf aus der HA-Geräteseite
+
+Alle Entities werden dem Gerät „Solvis &lt;unitId&gt;" zugeordnet und sind in Home Assistant als eine Einheit sichtbar.
+
+Nach dem Verbindungsaufbau löscht der Server verwaiste Discovery-Nachrichten früherer Läufe (umbenannte Unit,
+entfallene Kanäle, alte `unique_id`s), damit in Home Assistant keine Geister-Entities zurückbleiben.
+
+Zusätzlich werden folgende Statusinformationen als Entities angelegt:
+
+Entity | Beschreibung
+------ | ------------
+`sensor` Verbindungsstatus | Verbindungszustand zur Anlage (`SOLVIS_CONNECTED`, `POWER_OFF`, …)
+`sensor` GUI-Status | Aktueller GUI-Zugriff (`CONTROL_WRITE_ONGOING`, `CONTROL_FINISHED`, …)
+`sensor` Anlagenzugriff | Manueller Zugriff an der Anlage (`USER_ACCESS_DETECTED`, …)
+`binary_sensor` Schreibzugriff aktiviert | `true` wenn GUI-Steuerung aktiv und nicht blockiert ist
+
+##### Schreibzugriff
+
+Schreibbare Entities (Sollwerte, Modi) senden Befehle über MQTT zurück an den Server, der sie anschließend über
+die GUI-Steuerung (OCR + simulierte Klicks) in der SolvisControl umsetzt. Dafür muss in der `base.xml` das Feature
+`InteractiveGUIAccess` aktiviert sein:
+
+```xml
+<tns:Feature id="InteractiveGUIAccess" value="true" />
+```
+
+Ob der Schreibzugriff aktuell möglich ist, zeigt der Binary Sensor **„Schreibzugriff aktiviert"**.
 
 ### Anlagenkonfiguration
 
