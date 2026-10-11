@@ -24,6 +24,7 @@
 			<enumeration value="Fern"></enumeration>
 			<enumeration value="WaermeP"></enumeration>
 			<enumeration value="Extern"></enumeration>
+			<enumeration value="Pellet"></enumeration>
 		</restriction>
 	</simpleType>
 
