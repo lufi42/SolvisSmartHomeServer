@@ -1,4 +1,10 @@
 # SolvisSmartHomeServer
+
+> **Fork-Hinweis (lufi42):** Dieser Fork führt den SolvisSmartHomeServer von GollmerSt weiter. Version 01.07.00 enthält
+> die Korrekturen aus den Upstream-Issues #12 (Home-Assistant-Discovery) und #14 (Kanäle bei zwei Heizkreisen) sowie die
+> Konfiguration für SolvisMax mit SolvisLino. Die Weiterentwicklung wird unter einem eigenen Projektnamen fortgesetzt;
+> Fehler und Wünsche bitte als [Issue in diesem Fork](https://github.com/lufi42/SolvisSmartHomeServer/issues).
+
 ## Überblick
 
 Dieses Programnm dient der Anbindung der SolvisMax 6 und 7 mit SolvisControl2 in Kombination der SolvisRemote an Smart-Home-Systeme wie z.B. Fhem, ioBroker, OpenHAB, Indigo.

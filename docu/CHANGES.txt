@@ -1,5 +1,27 @@
 A E N D E R U N G E N
 
+Version 01.07.00 (Fork lufi42, https://github.com/lufi42/SolvisSmartHomeServer)
+
+    16.10.2026  Konfigurationsmasken von C07 (Tagestemperatur_HK1) und C17 (Vorlauf_Soll_HK2)
+                korrigiert, beide fehlten bei Anlagen mit zwei Heizkreisen (Upstream-Issue #14).
+
+    12.10.2026  Home Assistant MQTT Auto-Discovery: Attribut haDiscoveryPrefix im Mqtt-Element
+                der base.xml. Stabile Entity-Ids aus Unit und Kanal-Id, lesbare Namen aus
+                ha-labels.properties, entity_category, device_class, Filter fuer offene Fuehler,
+                Loeschen verwaister Discovery-Nachrichten.
+
+    12.10.2026  Neue Hauptheizung mainHeating="Pellet" fuer SolvisMax mit SolvisLino (A12 als
+                Brenneranforderung, A14 unbelegt, Stoermeldung I-3 bzw. I-1). Neue Extensions
+                OhneRaumfuehler_HK1..3 fuer Heizkreise ohne Raumfuehler.
+
+    12.10.2026  Fehlende Einheiten S06, S07, X10, X11 ergaenzt. Attribut "boolean" an
+                Assignments wird jetzt wie in control.xsd akzeptiert. MQTT-Verbindungsfehler
+                werden mit Ursache geloggt.
+
+    10.10.2026  graficData.xml war bei mehr als einer Unit ungueltiges XML.
+
+    10.04.2026  log4j auf 2.25.4 aktualisiert (Log4Shell).
+
 Version 01.06.00
 
 IControlAccess

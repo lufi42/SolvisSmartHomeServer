@@ -15,8 +15,8 @@ import java.util.jar.Manifest;
 
 public class Version {
 
-	private String serverVersion = "01.06.00";
-	private String appendix = "3 heating circuits beta";
+	private String serverVersion = "01.07.00";
+	private String appendix = "fork lufi42";
 
 	public static Version getInstance() {
 		Version version = VersionHolder.INSTANCE;
