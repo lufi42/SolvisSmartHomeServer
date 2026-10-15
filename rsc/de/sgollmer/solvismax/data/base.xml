@@ -158,6 +158,16 @@
 	<tns:Mqtt enable="false" brokerUrl="192.168.0.71" port="1883"
 		subscribeQoS="1" publishQoS="1" idPrefix="SolvisSmartHomeServer"
 		topicPrefix="SolvisSmartHomeServer" smartHomeId="IoBroker" />
+	<!-- Home Assistant MQTT Auto-Discovery aktivieren:
+		haDiscoveryPrefix="homeassistant" zum Mqtt-Element hinzufuegen.
+		Beispiel:
+		<tns:Mqtt enable="true" brokerUrl="..." port="1883"
+			subscribeQoS="1" publishQoS="1" idPrefix="SolvisSmartHomeServer"
+			topicPrefix="SolvisSmartHomeServer" smartHomeId="HomeAssistant"
+			haDiscoveryPrefix="homeassistant" />
+		Beim ersten Verbindungsaufbau werden fuer jeden Kanal retained
+		Discovery-Messages auf homeassistant/<typ>/<id>/config veroeffentlicht.
+		Home Assistant erkennt die Entities damit automatisch. -->
 	<!-- ExceptionMail securityType: TLS, SSL oder NONE -->
 	<tns:ExceptionMail port="5870"
 		passwordCrypt="AES-coded" name="Vorname Nachname" securityType="TLS"
