@@ -164,6 +164,12 @@ eingebauten Dateien unter `rsc/de/sgollmer/solvismax/data/`. Änderungen wirken 
 
 Nach dem Verbindungsaufbau löscht der Server verwaiste Discovery-Nachrichten früherer Läufe (umbenannte Unit,
 entfallene Kanäle, alte `unique_id`s), damit in Home Assistant keine Geister-Entities zurückbleiben.
+Home Assistant verschiebt eine bestehende Entity nicht auf ein anderes Gerät, wenn sich nur die Discovery-Nachricht
+ändert. Stellt der Server beim Start fest, dass eine Entity laut der retained Nachricht des vorherigen Laufs zu einem
+anderen Gerät gehörte, entfernt er sie kurz und legt sie neu an; Entity-Id und Historie bleiben erhalten, manuell
+vergebene Bereiche oder Namen der Entity gehen dabei verloren. Hängen Entities trotzdem noch am alten Gerät
+(z.B. nach einem Update, bei dem der Broker die neuen Nachrichten schon kannte), genügt es, das Gerät in Home Assistant
+zu löschen: die Entities werden aus den retained Discovery-Nachrichten sofort wieder angelegt, jetzt auf den neuen Geräten.
 
 Zusätzlich werden folgende Statusinformationen als Entities angelegt:
 
