@@ -57,8 +57,9 @@ final class Callback implements MqttCallbackExtended {
 						this.mqtt.publish(CommandSetScreen.getMqttMeta(solvis));
 						solvis.getAllSolvisData().sendMetaToMqtt(this.mqtt, false);
 					}
-					this.mqtt.haDiscovery.publishDiscovery(this.mqtt.instances);
 				}
+				// also after a reconnection: the discovery messages may have been deleted meanwhile
+				this.mqtt.haDiscovery.publishDiscovery(this.mqtt.instances);
 				for (Solvis solvis : this.mqtt.instances.getUnits()) {
 					solvis.getAllSolvisData().getMeasurements().sent(observer);
 					this.mqtt.publish(solvis.getSolvisState().getSolvisStatePackage());
@@ -81,6 +82,10 @@ final class Callback implements MqttCallbackExtended {
 		try {
 			if (this.mqtt.haDiscovery.isDiscoveryTopic(topic)) {
 				this.mqtt.haDiscovery.retainedDiscoveryReceived(topic, message.getPayload());
+				return;
+			}
+			if (this.mqtt.haDiscovery.isBirthTopic(topic)) {
+				this.mqtt.haDiscovery.birthReceived(message.getPayload(), this.mqtt.instances);
 				return;
 			}
 			SubscribeData subscribeData;

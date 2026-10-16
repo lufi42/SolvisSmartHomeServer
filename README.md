@@ -168,6 +168,8 @@ Kanäle anderen Gruppen zuordnen (`S09=waermeerzeuger`), neue Gruppen anlegen (`
 Kanäle wieder dem Hauptgerät zuweisen (leerer Wert, `S14=`). Die Dateien sind UTF-8-kodiert; Format siehe die
 eingebauten Dateien unter `rsc/de/sgollmer/solvismax/data/`. Änderungen wirken nach einem Neustart des Servers.
 
+Die Discovery-Nachrichten werden bei jedem Verbindungsaufbau zum Broker und bei jedem Start von Home Assistant
+(Birth-Nachricht `<prefix>/status` = `online`) erneut veröffentlicht; in HA gelöschte Entities kommen so wieder.
 Nach dem Verbindungsaufbau löscht der Server verwaiste Discovery-Nachrichten früherer Läufe (umbenannte Unit,
 entfallene Kanäle, alte `unique_id`s), damit in Home Assistant keine Geister-Entities zurückbleiben.
 Home Assistant verschiebt eine bestehende Entity nicht auf ein anderes Gerät, wenn sich nur die Discovery-Nachricht

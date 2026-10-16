@@ -10,6 +10,9 @@ Nach Version 01.07.00 (Fork lufi42, unveroeffentlicht)
                 Entities, deren Geraet sich gegenueber der retained Discovery-Nachricht geaendert
                 hat, werden entfernt und neu angelegt, da HA sie sonst nicht umzieht.
 
+    17.10.2026  HA-Discovery wird bei jedem (Re-)Connect zum Broker und auf die Birth-Nachricht von
+                Home Assistant (<prefix>/status = online) erneut veroeffentlicht.
+
 Version 01.07.00 (Fork lufi42, https://github.com/lufi42/SolvisSmartHomeServer)
 
     16.10.2026  Konfigurationsmasken von C07 (Tagestemperatur_HK1) und C17 (Vorlauf_Soll_HK2)

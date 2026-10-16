@@ -26,6 +26,11 @@
  * same name in the writable data directory (next to graficData.xml). The
  * entries of such a file replace or extend the built-in ones.
  *
+ * The discovery messages are published on every (re)connection to the
+ * broker and whenever Home Assistant announces its start on the birth
+ * topic <prefix>/status ("online"), so that entities deleted in HA or
+ * discovery messages lost on the broker are restored.
+ *
  * Retained discovery messages of this server which are not published
  * again (renamed units, removed channels, old unique ids) are deleted
  * some seconds after the connection has been established.
@@ -77,6 +82,9 @@ class HomeAssistantDiscovery {
 	private static final String DEVICE_KEY_PREFIX = "device.";
 	private static final String GUI_WRITE_ENABLED_SUFFIX = "gui_write_enabled";
 	private static final String CONFIG_SUFFIX = "/config";
+	/** Home Assistant birth/will topic below the discovery prefix */
+	private static final String STATUS_SUFFIX = "/status";
+	private static final String BIRTH_PAYLOAD = "online";
 	private static final long CLEANUP_DELAY_MS = 20000;
 	/** time HA needs to remove an entity before it is published again */
 	private static final long REPUBLISH_DELAY_MS = 5000;
@@ -164,16 +172,36 @@ class HomeAssistantDiscovery {
 	}
 
 	/**
-	 * Topic filter for the retained discovery messages, used to find stale
-	 * entries of this server.
+	 * Topic filters to subscribe: the retained discovery messages (to find
+	 * stale entries of this server) and the Home Assistant birth topic.
 	 */
-	String getSubscribeFilter() {
-		return this.mqtt.getHaDiscoveryPrefix() + "/+/+" + CONFIG_SUFFIX;
+	String[] getSubscribeFilters() {
+		String prefix = this.mqtt.getHaDiscoveryPrefix();
+		return new String[] { prefix + "/+/+" + CONFIG_SUFFIX, prefix + STATUS_SUFFIX };
 	}
 
 	boolean isDiscoveryTopic(final String topic) {
 		return this.isEnabled() && topic.startsWith(this.mqtt.getHaDiscoveryPrefix() + '/')
 				&& topic.endsWith(CONFIG_SUFFIX);
+	}
+
+	boolean isBirthTopic(final String topic) {
+		return this.isEnabled() && topic.equals(this.mqtt.getHaDiscoveryPrefix() + STATUS_SUFFIX);
+	}
+
+	/**
+	 * Home Assistant publishes "online" on its birth topic after a (re)start.
+	 * The discovery messages are published again, because entities removed in
+	 * HA or discovery messages missing on the broker are only restored this
+	 * way.
+	 */
+	void birthReceived(final byte[] payload, final Instances instances) {
+		String message = new String(payload, Mqtt.UTF_8).trim();
+		if (!BIRTH_PAYLOAD.equalsIgnoreCase(message)) {
+			return;
+		}
+		logger.info("Home Assistant is online, discovery messages are published again.");
+		this.publishDiscovery(instances);
 	}
 
 	/**
