@@ -30,6 +30,11 @@
  * again (renamed units, removed channels, old unique ids) are deleted
  * some seconds after the connection has been established.
  *
+ * Home Assistant keeps an existing entity on its device even if the
+ * discovery message names another one. Entities whose device has changed
+ * compared to the retained message are therefore removed (empty payload)
+ * and published again, entity id and history are kept.
+ *
  ************************************************************************/
 
 package de.sgollmer.solvismax.connection.mqtt;
@@ -46,6 +51,7 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import de.sgollmer.solvismax.Constants;
@@ -72,6 +78,8 @@ class HomeAssistantDiscovery {
 	private static final String GUI_WRITE_ENABLED_SUFFIX = "gui_write_enabled";
 	private static final String CONFIG_SUFFIX = "/config";
 	private static final long CLEANUP_DELAY_MS = 20000;
+	/** time HA needs to remove an entity before it is published again */
+	private static final long REPUBLISH_DELAY_MS = 5000;
 
 	private static final String CATEGORY_DIAGNOSTIC = "diagnostic";
 	private static final String CATEGORY_CONFIG = "config";
@@ -86,6 +94,8 @@ class HomeAssistantDiscovery {
 	private static final Pattern COUNTER_IDS = Pattern.compile("X0[1-4]|X1[01]|C0[1-3]|C2[45]");
 	private static final Pattern CAMEL_CASE = Pattern.compile("(?<=[a-z\\u00e4\\u00f6\\u00fc\\u00df])(?=[A-Z])");
 	private static final Pattern UNIT_SUFFIX = Pattern.compile("_(s|h|kWh|kW)$");
+	private static final Pattern DEVICE_IDENTIFIER = Pattern
+			.compile("\"identifiers\"\\s*:\\s*\\[\\s*\"([^\"]*)\"");
 
 	private final Mqtt mqtt;
 	private final Properties labels = new Properties();
@@ -93,10 +103,12 @@ class HomeAssistantDiscovery {
 	private File overrideDir = null;
 	private final Set<String> unknownGroups = new HashSet<>();
 
-	/** discovery topics published in this session */
-	private final Set<String> published = new HashSet<>();
+	/** discovery topics published in this session with their payload */
+	private final Map<String, String> published = new HashMap<>();
 	/** retained discovery topics of this server found on the broker */
 	private final Set<String> retainedOnBroker = new HashSet<>();
+	/** device identifier of the retained discovery messages of former runs */
+	private final Map<String, String> retainedDevices = new HashMap<>();
 	private boolean cleanupScheduled = false;
 
 	HomeAssistantDiscovery(final Mqtt mqtt) {
@@ -179,7 +191,17 @@ class HomeAssistantDiscovery {
 		}
 		synchronized (this) {
 			this.retainedOnBroker.add(topic);
+			// The echo of an own publish is identical, everything else is from a former run
+			String received = new String(payload, Mqtt.UTF_8);
+			if (!received.equals(this.published.get(topic))) {
+				this.retainedDevices.put(topic, identifierOf(received));
+			}
 		}
+	}
+
+	private static String identifierOf(final String payload) {
+		Matcher matcher = DEVICE_IDENTIFIER.matcher(payload);
+		return matcher.find() ? matcher.group(1) : "";
 	}
 
 	void publishDiscovery(final Instances instances) {
@@ -275,24 +297,49 @@ class HomeAssistantDiscovery {
 
 	private void cleanup() {
 		Collection<String> stale = new HashSet<>();
+		Map<String, String> moved = new HashMap<>();
 		synchronized (this) {
 			this.cleanupScheduled = false;
 			for (String topic : this.retainedOnBroker) {
-				if (!this.published.contains(topic)) {
+				if (!this.published.containsKey(topic)) {
 					stale.add(topic);
 				}
 			}
+			for (Map.Entry<String, String> entry : this.retainedDevices.entrySet()) {
+				String payload = this.published.get(entry.getKey());
+				if (payload != null && !entry.getValue().equals(identifierOf(payload))) {
+					moved.put(entry.getKey(), payload);
+				}
+			}
 			this.retainedOnBroker.clear();
+			this.retainedDevices.clear();
 		}
 		for (String topic : stale) {
 			this.mqtt.publish(new MqttData(topic, "", 0, true));
 			logger.info("HA discovery: stale entry <" + topic + "> deleted.");
 		}
+		if (moved.isEmpty()) {
+			return;
+		}
+		// HA doesn't move an entity to another device on update, so remove and re-create it
+		for (String topic : moved.keySet()) {
+			this.mqtt.publish(new MqttData(topic, "", 0, true));
+		}
+		logger.info("HA discovery: " + moved.size()
+				+ " entities assigned to another device, they are removed and published again.");
+		try {
+			Thread.sleep(REPUBLISH_DELAY_MS);
+		} catch (InterruptedException e) {
+			return;
+		}
+		for (Map.Entry<String, String> entry : moved.entrySet()) {
+			this.mqtt.publish(new MqttData(entry.getKey(), entry.getValue(), 0, true));
+		}
 	}
 
 	private void publishConfig(final String topic, final String payload) {
 		synchronized (this) {
-			this.published.add(topic);
+			this.published.put(topic, payload);
 		}
 		this.mqtt.publish(new MqttData(topic, payload, 0, true));
 	}
