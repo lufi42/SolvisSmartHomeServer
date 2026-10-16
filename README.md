@@ -123,7 +123,8 @@ weil der Server sie dann nicht liest.
 Die Konfigurationsnachrichten enthalten zusätzlich:
 
 * **Namen** aus `ha-labels.properties` (Begriffe des Solvis-Anschlussplans und der SolvisControl-Bildschirme,
-  z.B. `S01` → „Speicher oben“, `C08` → „Absenktemperatur HK1“). Ohne Eintrag wird der Name aus dem Kanalnamen abgeleitet.
+  z.B. `S01` → „Oben“ im Gerät „Speicher“, `C08` → „Absenktemperatur“ im Gerät „Heizkreis 1“). Ohne Eintrag wird der
+  Name aus dem Kanalnamen abgeleitet.
 * **`unique_id` und `object_id`** aus Unit und Kanal-Id (`sensor.solvis_<unitId>_s01`). Ein Umbenennen des Kanals in der
   `base.xml` ändert damit weder die Entity-Id noch geht die Historie verloren.
 * **`entity_category`** — `diagnostic` für Anlagentyp, Systemnummer, Uhrzeit und die Server-Status-Entities, `config` für
@@ -137,7 +138,29 @@ Die Konfigurationsnachrichten enthalten zusätzlich:
   werden als „unbekannt“ gemeldet statt als Messwert.
 * **`configuration_url`** — URL der Solvis-Anlage, ermöglicht direkten Aufruf aus der HA-Geräteseite
 
-Alle Entities werden dem Gerät „Solvis &lt;unitId&gt;" zugeordnet und sind in Home Assistant als eine Einheit sichtbar.
+**Geräte:** Die Entities einer Unit werden entsprechend dem Anlagenschema der SolvisRemote auf mehrere Home-Assistant-Geräte
+verteilt, die alle mit dem Hauptgerät „Solvis &lt;unitId&gt;“ verknüpft sind (`via_device`):
+
+Gerät | Inhalt
+--- | ---
+`Solvis <unitId>` | Außentemperatur, Anlagentyp, Systemnummer, Uhrzeit, Server-Status
+`<unitId> Speicher` | Speicherfühler S1, S3, S4, S9, Pufferparameter
+`<unitId> Solaranlage` | Kollektor, Vor-/Rücklauf, Druck, Durchfluss, Solarpumpen, Ventile, Wärmemenge, Laufzeiten
+`<unitId> Warmwasser` | Warmwasser- und Zirkulationsfühler, Pumpen, Solltemperatur, Nachheizen
+`<unitId> Heizkreis 1` … `3` | Vorlauf, Raumfühler, Pumpe, Mischer, Betriebsart, Temperaturen, Heizkurve
+`<unitId> Wärmeerzeuger` | Kessel/Brenner, Pelletkessel, Wärmepumpe, Fernwärme: Fühler, Anforderung, Ladepumpe, Störung, Laufzeiten, Starts
+
+Die Zuordnung steht in `ha-groups.properties` und ist kanalgenau, d.h. sie berücksichtigt die Belegung des
+jeweiligen Anlagentyps (`S09.Heissgas` gehört zur Wärmepumpe, `S09.Heizungspuffertemperatur_unten` zum Speicher;
+`A07.Pumpe_Solar2` zur Solaranlage, `A07.Ladepumpe` zum Wärmeerzeuger). Entity-Ids und `unique_id`s sind von der
+Gruppierung unabhängig.
+
+**Anpassung pro Anlage:** Liegt im Datenverzeichnis des Servers (neben `graficData.xml`, in `base.xml` als
+`writablePathLinux`/`writeablePathWindows` konfiguriert) eine Datei `ha-groups.properties` oder `ha-labels.properties`,
+werden deren Einträge zusätzlich zu den eingebauten geladen und überschreiben diese. Damit lassen sich Namen ändern,
+Kanäle anderen Gruppen zuordnen (`S09=waermeerzeuger`), neue Gruppen anlegen (`device.keller=Keller`) oder
+Kanäle wieder dem Hauptgerät zuweisen (leerer Wert, `S14=`). Die Dateien sind UTF-8-kodiert; Format siehe die
+eingebauten Dateien unter `rsc/de/sgollmer/solvismax/data/`. Änderungen wirken nach einem Neustart des Servers.
 
 Nach dem Verbindungsaufbau löscht der Server verwaiste Discovery-Nachrichten früherer Läufe (umbenannte Unit,
 entfallene Kanäle, alte `unique_id`s), damit in Home Assistant keine Geister-Entities zurückbleiben.
