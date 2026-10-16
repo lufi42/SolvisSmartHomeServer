@@ -56,18 +56,19 @@ public class MqttThread extends Helper.Runnable {
 				options.setAutomaticReconnect(true);
 				this.mqtt.client.setCallback(this.mqtt.callback);
 				int cmndLength = Constants.Mqtt.CMND_SUFFIXES.length;
-				boolean haDiscovery = this.mqtt.haDiscovery.isEnabled();
-				int length = haDiscovery ? cmndLength + 1 : cmndLength;
+				String[] haFilters = this.mqtt.haDiscovery.isEnabled() ? this.mqtt.haDiscovery.getSubscribeFilters()
+						: new String[0];
+				int length = cmndLength + haFilters.length;
 				String[] topicFilters = new String[length];
 				int[] qoSs = new int[length];
 				for (int i = 0; i < cmndLength; ++i) {
 					topicFilters[i] = this.mqtt.topicPrefix + Constants.Mqtt.CMND_SUFFIXES[i];
 					qoSs[i] = this.mqtt.subscribeQoS;
 				}
-				if (haDiscovery) {
-					// retained discovery messages, used to delete stale entries of this server
-					topicFilters[cmndLength] = this.mqtt.haDiscovery.getSubscribeFilter();
-					qoSs[cmndLength] = 0;
+				// retained discovery messages (stale entries of this server) and the HA birth topic
+				for (int i = 0; i < haFilters.length; ++i) {
+					topicFilters[cmndLength + i] = haFilters[i];
+					qoSs[cmndLength + i] = 0;
 				}
 
 				boolean connected = false;
