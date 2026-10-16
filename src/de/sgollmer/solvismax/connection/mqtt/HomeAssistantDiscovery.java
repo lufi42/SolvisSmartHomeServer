@@ -16,6 +16,16 @@
  * history. Display names come from ha-labels.properties, with a fallback
  * derived from the channel name.
  *
+ * The entities of a unit are grouped into HA devices following the
+ * Solvis schema (Speicher, Solaranlage, Warmwasser, Heizkreis 1-3,
+ * Waermeerzeuger), mapping in ha-groups.properties. Each group device is
+ * linked to the unit device (via_device). Entity ids do not depend on the
+ * grouping.
+ *
+ * Both property files can be overridden per installation by files of the
+ * same name in the writable data directory (next to graficData.xml). The
+ * entries of such a file replace or extend the built-in ones.
+ *
  * Retained discovery messages of this server which are not published
  * again (renamed units, removed channels, old unique ids) are deleted
  * some seconds after the connection has been established.
@@ -24,11 +34,15 @@
 
 package de.sgollmer.solvismax.connection.mqtt;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
@@ -50,7 +64,11 @@ class HomeAssistantDiscovery {
 
 	private static final ILogger logger = LogManager.getInstance().getLogger(HomeAssistantDiscovery.class);
 
-	private static final String LABELS_RESOURCE = "/de/sgollmer/solvismax/data/ha-labels.properties";
+	private static final String RESOURCE_DIR = "/de/sgollmer/solvismax/data/";
+	private static final String LABELS_FILE = "ha-labels.properties";
+	private static final String GROUPS_FILE = "ha-groups.properties";
+	/** key prefix of the group definitions in ha-groups.properties */
+	private static final String DEVICE_KEY_PREFIX = "device.";
 	private static final String GUI_WRITE_ENABLED_SUFFIX = "gui_write_enabled";
 	private static final String CONFIG_SUFFIX = "/config";
 	private static final long CLEANUP_DELAY_MS = 20000;
@@ -71,6 +89,9 @@ class HomeAssistantDiscovery {
 
 	private final Mqtt mqtt;
 	private final Properties labels = new Properties();
+	private final Properties groups = new Properties();
+	private File overrideDir = null;
+	private final Set<String> unknownGroups = new HashSet<>();
 
 	/** discovery topics published in this session */
 	private final Set<String> published = new HashSet<>();
@@ -80,19 +101,48 @@ class HomeAssistantDiscovery {
 
 	HomeAssistantDiscovery(final Mqtt mqtt) {
 		this.mqtt = mqtt;
-		this.loadLabels();
+		loadResource(this.labels, LABELS_FILE);
+		loadResource(this.groups, GROUPS_FILE);
 	}
 
-	private void loadLabels() {
-		InputStream in = Main.class.getResourceAsStream(LABELS_RESOURCE);
+	private static void loadResource(final Properties properties, final String fileName) {
+		String resource = RESOURCE_DIR + fileName;
+		InputStream in = Main.class.getResourceAsStream(resource);
 		if (in == null) {
-			logger.warn("Resource <" + LABELS_RESOURCE + "> not found, channel names are derived from channel ids.");
+			logger.warn("Resource <" + resource + "> not found.");
 			return;
 		}
 		try (InputStreamReader reader = new InputStreamReader(in, Mqtt.UTF_8)) {
-			this.labels.load(reader);
+			properties.load(reader);
 		} catch (IOException e) {
-			logger.error("Error reading <" + LABELS_RESOURCE + ">: " + e.getMessage());
+			logger.error("Error reading <" + resource + ">: " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Loads the installation specific overrides of the labels and groups from
+	 * the writable data directory, if present. Executed once.
+	 */
+	private void loadOverrides(final File dir) {
+		if (dir == null || dir.equals(this.overrideDir)) {
+			return;
+		}
+		this.overrideDir = dir;
+		loadOverride(this.labels, new File(dir, LABELS_FILE));
+		loadOverride(this.groups, new File(dir, GROUPS_FILE));
+	}
+
+	private static void loadOverride(final Properties properties, final File file) {
+		if (!file.isFile()) {
+			return;
+		}
+		try (InputStreamReader reader = new InputStreamReader(new FileInputStream(file), Mqtt.UTF_8)) {
+			Properties override = new Properties();
+			override.load(reader);
+			properties.putAll(override);
+			logger.info("HA discovery: " + override.size() + " entries read from <" + file.getAbsolutePath() + ">.");
+		} catch (IOException e) {
+			logger.error("Error reading <" + file.getAbsolutePath() + ">: " + e.getMessage());
 		}
 	}
 
@@ -137,6 +187,7 @@ class HomeAssistantDiscovery {
 			return;
 		}
 		String prefix = this.mqtt.getHaDiscoveryPrefix();
+		this.loadOverrides(instances.getWritePath());
 
 		String availabilityTopic = this.mqtt.getTopicPrefix() + "/" + Constants.Mqtt.SERVER + "/"
 				+ Constants.Mqtt.ONLINE_STATUS;
@@ -149,6 +200,7 @@ class HomeAssistantDiscovery {
 			String unitId = solvis.getUnit().getId();
 			String configurationUrl = solvis.getUnit().getUrl();
 			String deviceJson = buildDeviceJson(unitId, configurationUrl);
+			Map<String, String> groupDeviceJsons = new HashMap<>();
 			boolean guiAccess = solvis.getFeatures().isInteractiveGUIAccess();
 
 			publishUnitStatusDiscovery(prefix, solvis, unitId, deviceJson, availabilityTopic);
@@ -166,6 +218,8 @@ class HomeAssistantDiscovery {
 				String channelName = solvisData.getName();
 				String channelId = instance.getDescription().getId();
 				String label = this.getLabel(channelId, channelName);
+				String channelDeviceJson = this.getGroupDeviceJson(unitId, channelId, channelName, deviceJson,
+						groupDeviceJsons);
 
 				// Values of the SolvisControl GUI are only read with GUI access
 				if (!guiAccess && instance.getDescription().getType() == IChannelSource.Type.CONTROL) {
@@ -178,8 +232,8 @@ class HomeAssistantDiscovery {
 					continue;
 				}
 				try {
-					publishChannelDiscovery(prefix, unitId, solvisData, instance, channelId, label, deviceJson,
-							availabilityTopic);
+					publishChannelDiscovery(prefix, unitId, solvisData, instance, channelId, label,
+							channelDeviceJson, availabilityTopic);
 				} catch (Exception e) {
 					logger.error("Error publishing HA discovery for channel <" + channelName + ">: " + e.getMessage());
 				}
@@ -304,10 +358,14 @@ class HomeAssistantDiscovery {
 		publishConfig(prefix + "/sensor/" + uniqueId + CONFIG_SUFFIX, payload.toString());
 	}
 
+	private String deviceIdentifier(final String unitId) {
+		return this.mqtt.getTopicPrefix() + "_" + unitId;
+	}
+
+	/** Device of the unit itself (status entities and channels without group) */
 	private String buildDeviceJson(final String unitId, final String configurationUrl) {
 		StringBuilder sb = new StringBuilder();
-		sb.append("{\"identifiers\":[\"");
-		sb.append(jsonEscape(this.mqtt.getTopicPrefix())).append('_').append(jsonEscape(unitId));
+		sb.append("{\"identifiers\":[\"").append(jsonEscape(deviceIdentifier(unitId)));
 		sb.append("\"],\"name\":\"Solvis ").append(jsonEscape(unitId));
 		sb.append("\",\"manufacturer\":\"Solvis GmbH\",\"model\":\"SolvisMax\"");
 		if (configurationUrl != null && !configurationUrl.isEmpty()) {
@@ -316,6 +374,49 @@ class HomeAssistantDiscovery {
 		}
 		sb.append('}');
 		return sb.toString();
+	}
+
+	/** Device of a group (Speicher, Solaranlage, ...), linked to the unit device */
+	private String buildGroupDeviceJson(final String unitId, final String groupKey, final String groupName) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("{\"identifiers\":[\"").append(jsonEscape(deviceIdentifier(unitId) + "_" + groupKey));
+		sb.append("\"],\"name\":\"").append(jsonEscape(unitId + " " + groupName));
+		sb.append("\",\"manufacturer\":\"Solvis GmbH\",\"model\":\"SolvisMax\"");
+		sb.append(",\"via_device\":\"").append(jsonEscape(deviceIdentifier(unitId))).append('"');
+		sb.append('}');
+		return sb.toString();
+	}
+
+	/**
+	 * Determines the device JSON of a channel. The group is looked up in
+	 * ha-groups.properties by the channel name first (assignment specific, e.g.
+	 * "S09.Heissgas"), then by the channel id. No or an empty entry means the
+	 * unit device.
+	 */
+	private String getGroupDeviceJson(final String unitId, final String channelId, final String channelName,
+			final String unitDeviceJson, final Map<String, String> cache) {
+		String groupKey = this.groups.getProperty(channelName);
+		if (groupKey == null) {
+			groupKey = this.groups.getProperty(channelId);
+		}
+		if (groupKey == null || groupKey.trim().isEmpty()) {
+			return unitDeviceJson;
+		}
+		groupKey = groupKey.trim();
+		String groupName = this.groups.getProperty(DEVICE_KEY_PREFIX + groupKey);
+		if (groupName == null || groupName.trim().isEmpty()) {
+			if (this.unknownGroups.add(groupKey)) {
+				logger.warn("HA discovery: group <" + groupKey + "> of channel <" + channelName
+						+ "> is not defined (" + DEVICE_KEY_PREFIX + groupKey + "), unit device is used.");
+			}
+			return unitDeviceJson;
+		}
+		String json = cache.get(groupKey);
+		if (json == null) {
+			json = buildGroupDeviceJson(unitId, sanitizeId(groupKey), groupName.trim());
+			cache.put(groupKey, json);
+		}
+		return json;
 	}
 
 	private void publishChannelDiscovery(final String prefix, final String unitId, final SolvisData solvisData,
