@@ -7,6 +7,8 @@ Nach Version 01.07.00 (Fork lufi42, unveroeffentlicht)
                 Waermeerzeuger), verknuepft mit dem Hauptgeraet. Zuordnung kanalgenau in
                 ha-groups.properties; ha-groups.properties und ha-labels.properties koennen
                 pro Anlage durch gleichnamige Dateien im Datenverzeichnis ueberschrieben werden.
+                Entities, deren Geraet sich gegenueber der retained Discovery-Nachricht geaendert
+                hat, werden entfernt und neu angelegt, da HA sie sonst nicht umzieht.
 
 Version 01.07.00 (Fork lufi42, https://github.com/lufi42/SolvisSmartHomeServer)
 
